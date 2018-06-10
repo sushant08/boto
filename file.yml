@@ -1,0 +1,9 @@
+ default:
+ - subnet-azb:
+   - type: t2.micro
+     image: ami-dc740da3
+     name: myinstance
+     key: mykey
+     data: 10
+     ipaddr: 10.1.1.2
+     sg: [ssh-icmp-reply, http-https]
