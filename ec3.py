@@ -22,7 +22,7 @@ if (INPUT == "create"):
 
 elif(INPUT == "rm"):
     RI_NAME = (input('\nEnter name of instance you want to remove: ')).strip()
-    R_VOL = (input('\nWhat to retain volume Y/N:')).strip()
+    R_VOL = (input('\nWant to retain volume Y/N:')).strip()
 else:
     print("\nEnter correct option: create/rm")
     sys.exit(1)
@@ -129,19 +129,45 @@ running_instances = ec2.instances.filter(Filters=[{
 
 client = boto3.client('ec2')
 
+instance_ vol = []
 def rm():
     for i in ec2.instances.all():
         for tag in i.tags:
             if tag['Key'] == 'Name' and tag['Value'] == RI_NAME:
                 RI_ID = i.instance_id
-                
+                if (RI_ID == None):
+                    print("Instance with this tag don't exist")
+                    sys.exit(1)
+                print(RI_ID)
+                volumes = i.volumes.all()
+                for v in volumes:
+                    print(v.id)
+                        
+                response = client.terminate_instances(
+                     InstanceIds=[
+                          RI_ID,
+                        ],
+                        DryRun=False
+                 )
 
-    response = client.terminate_instances(
-        InstanceIds=[
-          RI_ID,
-        ],
-        DryRun=False
-    )
+            else:
+                print("Instance with this tag don't exist")
+        if(R_VOL == "Y"):
+            for v in instance_vol.append(v.id):
+                try:
+                    snapshot = ec2.create_snapshot(VolumeId=v, Description="Snapshot frm instance")
+                    print("Please save this snapshot id and use it in next instance creation: ", snapshot.id)
+                except:
+                    raise
+        elif:(R_VOL == "N"):
+            for v in instance_vol.append(v.id):
+                volume = ec2.Volume("v")
+                response = volume.delete(
+                    DryRun=True
+                )
+
+
+
 
 {
 'create':  create,
