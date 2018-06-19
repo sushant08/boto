@@ -6,7 +6,7 @@ import sys
 INPUT = (input('\nWant to create/rm instance : ')).strip()
 
 if (INPUT == "create"):
-    IMAGE = (input('\nEnter the image ID: ')).strip()
+    IMAGE_NAME = (input('\nEnter the image Name: ')).strip()
     I_TYPE = (input('\nEnter the instance type: ')).strip()
     INSTANCE_NAME = (input('\nEnter the instance tag name: ')).strip()
     KEY_NAME = (input('\nEnter keypair name: ')).strip()
@@ -82,7 +82,7 @@ def create():
                   'DeviceName': '/dev/xvdh',
                   'VirtualName': 'ephemeral',
                   'Ebs': {
-                      'Encrypted': True,
+ #                     'Encrypted': True,
                       'DeleteOnTermination': False,
  #                    'KmsKeyId': 'string',
                       'SnapshotId': SNAP,
@@ -121,10 +121,21 @@ def create():
         time.sleep(5)
         print('\nLogin using private ip :',instance.private_ip_address)
 
-# Get information for all running instances
-running_instances = ec2.instances.filter(Filters=[{
-    'Name': 'instance-state-name',
-    'Values': ['running']}])      
+# Get AMI from tag
+
+AMI = ec2.images.filter(
+        Filters=[
+        {
+            'Name': 'tag:Name',
+            'Values': [
+                IMAGE_NAME,
+            ]
+        },
+    ],
+)
+
+for i in AMI:
+    IMAGE = i.id  
 
 client = boto3.client('ec2')
 
@@ -141,7 +152,6 @@ def rm():
                         if (device.get('DeviceName')) == '/dev/xvdh':
                             volume = device.get('Ebs')
                             instance_vol.append(volume.get('VolumeId'))
-#                            print(instance_vol)
             
 
                     response = client.terminate_instances(
@@ -158,18 +168,25 @@ def rm():
                             except:
                                 raise
                     elif(R_VOL == "N"):
+                        print("Termination is in process...")
                         for vm in instance_vol:
+                            print(vm)
                             volume = ec2.Volume(vm)
-                            response = volume.delete(
-                                DryRun=False
-                                )
+                            print(volume)
+                            response = volume.detach_from_instance(
+                                Device='/dev/xvdh',
+                                Force=True,
+                                InstanceId=RI_ID
+                            )
+                            time.sleep(120)
+                            response = volume.delete()
+                        print("\nInstance terminated and volume deleted")
                     else:
                          print("You haven't choosed what to do with volume correctly")    
                     
                 except:
-                       print("Instance with this name don't exist")
-            else:
-                print("Instance don't exist")  
+                       sys.exit(0)
+
         
 
 
