@@ -14,7 +14,7 @@ if (INPUT == "create"):
     if (NEW_DISK == "Y"):
            EBS = int(input('\nEnter the volume size: '))
     elif(NEW_DISK == "N"):
-           SNAP = (input('\nEnter existing volume snapshot name: ')).strip()
+           SNAP_NAME = (input('\nEnter existing volume snapshot name: ')).strip()
            EBS = int(input('\nEnter the volume size: '))
     else:
             print("Please enter valid value:(Y/N)")
@@ -24,12 +24,14 @@ if (INPUT == "create"):
 elif(INPUT == "rm"):
     RI_NAME = (input('\nEnter name of instance you want to remove: ')).strip()
     R_VOL = (input('\nWant to retain volume Y/N:')).strip()
-else:
+        
+else: 
     print("\nEnter correct option: create/rm")
     sys.exit(1)
 
 
 ec2 = boto3.resource('ec2')
+
 
 user_data_script = """#!/bin/bash
 sudo mkfs.ext4 /dev/xvdh
@@ -38,6 +40,23 @@ echo "/dev/xvdh /vol auto noatime 0 0" | sudo tee -a /etc/fstab
 mount --all"""
 
 def create():
+    # Get AMI from tag
+
+    AMI = ec2.images.filter(
+            Filters=[
+           {
+               'Name': 'tag:Name',
+               'Values': [
+               IMAGE_NAME,
+               ]
+            },
+        ],
+    )
+
+    for i in AMI:
+        IMAGE = i.id
+
+
     if(NEW_DISK ==  "Y"):
         createinstance = ec2.create_instances(
            BlockDeviceMappings=[
@@ -76,6 +95,22 @@ def create():
      
         )
     else:
+        #This part take care of snaptag to id
+
+        snapshot_iterator = ec2.snapshots.filter(
+            Filters=[
+                {
+                    'Name': 'tag:Name',
+                    'Values': [
+                        SNAP_NAME,
+                    ]
+                },
+           ],    
+        )
+
+        for j in snapshot_iterator:
+            SNAP = j.id
+        
         createinstance = ec2.create_instances(
            BlockDeviceMappings=[
               {
@@ -121,21 +156,7 @@ def create():
         time.sleep(5)
         print('\nLogin using private ip :',instance.private_ip_address)
 
-# Get AMI from tag
 
-AMI = ec2.images.filter(
-        Filters=[
-        {
-            'Name': 'tag:Name',
-            'Values': [
-                IMAGE_NAME,
-            ]
-        },
-    ],
-)
-
-for i in AMI:
-    IMAGE = i.id  
 
 client = boto3.client('ec2')
 
@@ -145,6 +166,7 @@ def rm():
         for tag in i.tags:
             if tag['Value'] == RI_NAME:
                 RI_ID = i.instance_id
+
 
                 try:
                     instance = ec2.Instance(RI_ID)
@@ -161,18 +183,23 @@ def rm():
                          DryRun=False
                         )
                     if(R_VOL == "Y"):
+                        S_NEW_NAME = (input("\nEnter volume snap name you want to give:")).strip()
                         for vm in instance_vol:
                             try:
-                                snapshot = ec2.create_snapshot(VolumeId=vm, Description="Snapshot frm instance")
-                                print("Please save this snapshot id and use it in next instance creation: ", snapshot.id)
+                                snapshot = ec2.create_snapshot(VolumeId=vm, Description="Snapshot from instance")
+ #                               snapshot = ec2.Snapshot(snapshot.id)
+                                tag = snapshot.create_tags(
+                                    Tags=[
+                                        {'Key': 'Name', 'Value': S_NEW_NAME },
+                                        ]
+                                      )  
+                                print("Please save this snapshot name.Use it in next instance creation: ", S_NEW_NAME)
                             except:
                                 raise
                     elif(R_VOL == "N"):
                         print("Termination is in process...")
                         for vm in instance_vol:
-                            print(vm)
                             volume = ec2.Volume(vm)
-                            print(volume)
                             response = volume.detach_from_instance(
                                 Device='/dev/xvdh',
                                 Force=True,
@@ -185,11 +212,10 @@ def rm():
                          print("You haven't choosed what to do with volume correctly")    
                     
                 except:
-                       sys.exit(0)
+                       sys.exit(1)
+
 
         
-
-
 {
 'create':  create,
 'rm':  rm,
