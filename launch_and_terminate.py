@@ -164,55 +164,58 @@ instance_vol = []
 def rm():
     for i in ec2.instances.all():
         for tag in i.tags:
-            if tag['Value'] == RI_NAME:
+            if RI_NAME in tag['Value']:
                 RI_ID = i.instance_id
+            else:
+                print("Seems you are trying to remove instance with dont exist")
+                sys.exit(1)
 
 
-                try:
-                    instance = ec2.Instance(RI_ID)
-                    for device in instance.block_device_mappings:
-                        if (device.get('DeviceName')) == '/dev/xvdh':
-                            volume = device.get('Ebs')
-                            instance_vol.append(volume.get('VolumeId'))
+            try:
+                instance = ec2.Instance(RI_ID)
+                for device in instance.block_device_mappings:
+                    if (device.get('DeviceName')) == '/dev/xvdh':
+                        volume = device.get('Ebs')
+                        instance_vol.append(volume.get('VolumeId'))
             
 
-                    response = client.terminate_instances(
-                        InstanceIds=[
-                              RI_ID,
-                         ],
-                         DryRun=False
+                response = client.terminate_instances(
+                    InstanceIds=[
+                          RI_ID,
+                     ],
+                     DryRun=False
+                    )
+                if(R_VOL == "Y"):
+                    S_NEW_NAME = (input("\nEnter volume snap name you want to give:")).strip()
+                    for vm in instance_vol:
+                        try:
+                            snapshot = ec2.create_snapshot(VolumeId=vm, Description="Snapshot from instance")
+                            snapshot = ec2.Snapshot(snapshot.id)
+                            tag = snapshot.create_tags(
+                                Tags=[
+                                    {'Key': 'Name', 'Value': S_NEW_NAME },
+                                    ]
+                                  )  
+                            print("Please save this snapshot name.Use it in next instance creation: ", S_NEW_NAME)
+                        except:
+                            raise
+                elif(R_VOL == "N"):
+                    print("Termination is in process...")
+                    for vm in instance_vol:
+                        volume = ec2.Volume(vm)
+                        response = volume.detach_from_instance(
+                            Device='/dev/xvdh',
+                            Force=True,
+                            InstanceId=RI_ID
                         )
-                    if(R_VOL == "Y"):
-                        S_NEW_NAME = (input("\nEnter volume snap name you want to give:")).strip()
-                        for vm in instance_vol:
-                            try:
-                                snapshot = ec2.create_snapshot(VolumeId=vm, Description="Snapshot from instance")
- #                               snapshot = ec2.Snapshot(snapshot.id)
-                                tag = snapshot.create_tags(
-                                    Tags=[
-                                        {'Key': 'Name', 'Value': S_NEW_NAME },
-                                        ]
-                                      )  
-                                print("Please save this snapshot name.Use it in next instance creation: ", S_NEW_NAME)
-                            except:
-                                raise
-                    elif(R_VOL == "N"):
-                        print("Termination is in process...")
-                        for vm in instance_vol:
-                            volume = ec2.Volume(vm)
-                            response = volume.detach_from_instance(
-                                Device='/dev/xvdh',
-                                Force=True,
-                                InstanceId=RI_ID
-                            )
-                            time.sleep(120)
-                            response = volume.delete()
-                        print("\nInstance terminated and volume deleted")
-                    else:
-                         print("You haven't choosed what to do with volume correctly")    
+                        time.sleep(120)
+                        response = volume.delete()
+                    print("\nInstance terminated and volume deleted")
+                else:
+                     print("You haven't choosed what to do with volume correctly")    
                     
-                except:
-                       sys.exit(1)
+            except:
+                   sys.exit(1)
 
 
         
